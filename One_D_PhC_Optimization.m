@@ -199,7 +199,9 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     figure();
     plot(1:length(y_max), y_max * 1e9);  hold on;
     graphParams(['Optimal thicknesses - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda*1e9), '[nm]'], '$Layer\ Number$', '$Y_{max}$[nm]', 'y_max', save_fig, dir_name);
-    y_max * 1e9
+    y_max_nm = y_max * 1e9;
+    save('y_max.mat', 'y_max_nm');
+
 
 
 end
