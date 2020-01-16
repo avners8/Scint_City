@@ -34,11 +34,6 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     end
     Y      = Y_orig;
 
-    if ~((optimize == 0) & ~isempty(d0))
-        n       = [n_si, repmat([n_scint, n_ox], 1 , pairs), 1];
-        i_scint = 2:2:2 * pairs;
-    end
-
     %% Some stuff
 
     theta_orig = theta;
@@ -49,25 +44,6 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     Gold  = [0.9290 0.6940 0.1250];
 
     dir_name = [pwd, '\', dir_name];
-
-    %% Calculating constraints
-
-    % starting point
-    d =  total_size / pairs * ones(1, 2 * pairs);
-    even = 0.5 * (1+(-1).^(1:length(d)));
-    odd  = 0.5 * (1+(-1).^(0:length(d) - 1));
-
-    % Defining the constraints - Ad<=b
-    % Total oxide size is equal to 1 micron 
-    A = [];
-    b = [];
-    Aeq = [even;odd];
-    beq = [total_size,total_size];
-    lb = zeros(1, length(d));
-    ub = total_size*ones(1, length(d));
-    % Total oxide size can be smaller than 1 micron 
-    % A = [ -odd; odd; -diag(ones(1, length(d)))];
-    % b = [ -micron, micron, -dz*ones(1, length(d))];
 
 
     %% Calculating the minimum using Matlab Optimization Toolbox
@@ -80,44 +56,80 @@ function One_D_PhC_Optimization(dz_Nz,          ...
        Y      = 1;
     end
     n_bulk  = [n_si n_scint 1];
-    i_other = zeros(1,length(n) - length(i_scint) - 2);
-    count_scint = 1; count_other = 1;
-    for i = 2:length(n) - 1
-        if i - 1 == i_scint(count_scint)
-            count_scint = count_scint + 1;
-        else
-            i_other(count_other) = i - 1;
-            count_other = count_other + 1;
-        end
-    end
     
     if optimize
-        y_max_max = d;
+        y_max_max = 0;
         F_max_max = 0;
-        for i = 1:random_iterations
-            d = rand(size(d));
+        pairs_max = pairs(1);
+        
+        % Iterating on number of layers in the structure
+        for p = 1:length(pairs)
             
-            if total_size ~= 0
-                d(i_scint) = total_size * d(i_scint) / sum(d(i_scint));
-                d(i_other) = total_size * d(i_other) / sum(d(i_other));
+            n       = [n_si, repmat([n_scint, n_ox], 1 , pairs(p)), 1];
+            i_scint = 2:2:2 * pairs(p);
+            
+            i_other = zeros(1,length(n) - length(i_scint) - 2);
+            count_scint = 1; count_other = 1;
+            for j = 2:length(n) - 1
+                if j - 1 == i_scint(count_scint)
+                    count_scint = count_scint + 1;
+                else
+                    i_other(count_other) = j - 1;
+                    count_other = count_other + 1;
+                end
             end
             
-            Scint_City_aux = @(d)-sum(Scint_City_fun(lambda,theta,d,n,i_scint,dz_Nz,coupled,is_Gz) ...
-                                  ./ (Scint_City_fun(lambda,theta,sum(d),n_bulk,2,dz_Nz,coupled,is_Gz)) .*(Y.'));
-                              
-            [y_max,F_max_val,exitflag1,output_max] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
-            F_max_val = -F_max_val;
+            % Calculating constraints
+            % starting point
+            even = 0.5 * (1+(-1).^(1:(2*pairs(p))));
+            odd  = 0.5 * (1+(-1).^(0:(2*pairs(p) - 1)));
+
+            % Defining the constraints - Ad=b
+            % Total oxide size is equal to total size 
+            A = [];
+            b = [];
+            Aeq = [even;odd];
+            beq = [total_size,total_size];
+            lb = zeros(1, 2*pairs(p));
+            ub = total_size*ones(1, 2*pairs(p));
             
-            if F_max_val > F_max_max
-                F_max_max = F_max_val;
-                y_max_max = y_max;
+            % Randomizing starting point to improve optimal point
+            for i = 1:random_iterations
+                d = rand(1,2 * pairs(p));
+                
+                % applying total size constraint
+                if total_size ~= 0
+                    d(i_scint) = total_size * d(i_scint) / sum(d(i_scint));
+                    d(i_other) = total_size * d(i_other) / sum(d(i_other));
+                else
+                    d = total_size * d;
+                end
+
+                Scint_City_aux = @(d)-sum(Scint_City_fun(lambda,theta,d,n,i_scint,dz_Nz,coupled,is_Gz) ...
+                                      ./ (Scint_City_fun(lambda,theta,sum(d),n_bulk,2,dz_Nz,coupled,is_Gz)) .*(Y.'));
+
+                % Calling fmincon 
+                [y_max,F_max_val,exitflag1,output_max] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
+                F_max_val = -F_max_val;
+
+                if F_max_val > F_max_max
+                    F_max_max = F_max_val;
+                    y_max_max = y_max;
+                    pairs_max = pairs(p);
+                end
             end
         end
+        
+        % chosen parameters from optimization
         y_max = y_max_max;
+        pairs = pairs_max;
+        n       = [n_si, repmat([n_scint, n_ox], 1 , pairs), 1];
+        i_scint = 2:2:2 * pairs;
         
         Scint_City_aux = @(d)sum(Scint_City_fun(lambda,theta,d,n,i_scint,dz_Nz,coupled,is_Gz) ...
                              ./ (Scint_City_fun(lambda,theta,sum(d),n_bulk,2,dz_Nz,coupled,is_Gz)) .*(Y.'));
-                         
+        
+        d = rand(1,2 * pairs);            
         [y_min,F_min_val,exitflag2,output_min] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
     end
     
