@@ -14,10 +14,11 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                                 is_Gz,          ...
                                 random_iterations, ...
                                 total_size,     ...
+                                total_size_con, ...
                                 optimize,       ...
                                 save_fig,       ...
                                 dir_name )
-
+    
     set(groot, 'defaultFigurePosition', [100 100 900 600]); % figure size
     set(groot, 'defaultTextInterpreter', 'latex'); % latex
     set(groot, 'defaultLegendInterpreter', 'latex'); % latex
@@ -88,8 +89,15 @@ function One_D_PhC_Optimization(dz_Nz,          ...
             % Total oxide size is equal to total size 
             A = [];
             b = [];
-            Aeq = [even;odd];
-            beq = [total_size,total_size];
+            if total_size_con
+                Aeq = [even];
+                beq = [total_size];
+%                 Aeq = [even;odd];
+%                 beq = [total_size,total_size];
+            else
+                Aeq = [];
+                beq = [];
+            end
             lb = zeros(1, 2*pairs(p));
             ub = total_size*ones(1, 2*pairs(p));
             
@@ -98,7 +106,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                 d = rand(1,2 * pairs(p));
                 
                 % applying total size constraint
-                if total_size ~= 0
+                if total_size_con
                     d(i_scint) = total_size * d(i_scint) / sum(d(i_scint));
                     d(i_other) = total_size * d(i_other) / sum(d(i_other));
                 else
@@ -143,7 +151,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     Y       = Y_orig;
     lambda  = lambda_orig;
     theta   = theta_orig;
-    total_size = sum(y_max(i_scint));
+    total_size = sum(y_max(i_scint - 1));
     
     Pf_max  = Scint_City_fun(lambda,theta,y_max,n,i_scint,dz_Nz,inside,is_Gz);
     if ~((optimize == 0) & ~isempty(d0))
@@ -176,7 +184,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
 
     %% Plotting optimal result - theta dependency
 
-    theta = linspace(-pi/2, pi/2, 301);
+    theta = linspace(-pi/2, pi/2, 1001);
     lambda = central_lambda;
     F_max  = Scint_City_fun(lambda,theta,y_max,n,i_scint,dz_Nz,coupled,is_Gz);
     if ~((optimize == 0) & ~isempty(d0))
@@ -187,23 +195,54 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     norm_F = F_bulk(ceil(end / 2)); % at theta = 0
 
     figure();
+    psf_opt = F_max  ./ norm_F;
     plot(theta, F_max  ./ norm_F,  'Color', Green, 'DisplayName', '$Max$');  hold on;
     if ~((optimize == 0) & ~isempty(d0))
         plot(theta, F_min  ./ norm_F,  'Color', Red	,  'DisplayName', '$Min$');  hold on;
     end
+    psf_bulk = F_bulk ./ norm_F;
     plot(theta, F_bulk ./ norm_F, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
-
+    
     graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda*1e9), '[nm]'], '$\theta\ [rad]$', '$f$', 'theta', save_fig, dir_name);
-
+    
     %% Plotting y_max
     figure();
-    plot(1:length(y_max), y_max * 1e9);  hold on;
+    plot(1:length(y_max), y_max * 1e9, 'DisplayName', 'All');  hold on;
+    plot(i_scint, y_max(i_scint) * 1e9, 'ro', 'DisplayName', 'Scint');  hold on;
     graphParams(['Optimal thicknesses - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda*1e9), '[nm]'], '$Layer\ Number$', '$Y_{max}$[nm]', 'y_max', save_fig, dir_name);
     y_max_nm = y_max * 1e9;
-    save('y_max.mat', 'y_max_nm');
-
-
-
+    save(dir_name + "\y_max.mat", 'y_max_nm');
+    save('workspace.mat', '-append');
+    %% Plotting MTF and Test image
+    load('workspace.mat');
+    image = imread('barbara.png');
+    k = length(psf_opt) / 13;
+    [p_im_opt,mse_opt,MTF_opt] = Image_Processing(image,psf_opt ,k,sum(y_max));
+    [p_im_bul,mse_bul,MTF_bul] = Image_Processing(image,psf_bulk,k,sum(y_max(i_scint)));
+    
+    reduced_psf_opt = (psf_opt(1:k:end) + psf_opt(2:k:end) + psf_opt(3:k:end)) / 3;
+    reduced_psf_bul = (psf_bulk(1:k:end) + psf_bulk(2:k:end) + psf_bulk(3:k:end)) / 3;
+    figure();    
+    plot(ceil(length(MTF_opt)/2):length(MTF_opt), MTF_opt(ceil(length(MTF_opt)/2) :length(MTF_opt)), 'Color', Green, 'DisplayName', '$Max$');  hold on;
+    plot(ceil(length(MTF_bul)/2):length(MTF_bul), MTF_bul(ceil(length(MTF_bul)/2) :length(MTF_bul)), 'Color', Gold , 'DisplayName', '$bulk$'); hold on;
+    graphParams(['MTF - ', num2str(2*pairs + 2), ' layers'], '$Spacial\ Frequency$', '$log(1+MTF)$', 'mtf', save_fig, dir_name);
+    
+    
+    % Test image
+    figure();
+    plot(theta, psf_opt , 'Color', Green, 'DisplayName', '$Max$');  hold on;
+    plot(theta, psf_bulk, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
+	plot(theta(1:k:end), reduced_psf_opt, ':', 'Color', Green, 'DisplayName', '$Max$');  hold on;
+    plot(theta(1:k:end), reduced_psf_bul, ':', 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
+    graphParams('Reduced psf', '', '', '', 0, '') 
+    
+    % Plotting
+    figure();
+    subplot(1,3, 1); imshow(image);    graphParams2('Original Image', '', '', '', 0, '');
+    subplot(1,3, 2); imshow(p_im_bul); graphParams2(['Bulk: MSE = ', num2str(mse_bul)],      '', '', '', 0, '');
+    subplot(1,3, 3); imshow(p_im_opt); graphParams2(['Optimized: MSE = ', num2str(mse_opt)], '', '', 'barbara', save_fig, dir_name);
+    
+    
 end
 
 function graphParams(ptitle, pxlabel, pylabel, figname, save_fig, dir_name) 
@@ -220,4 +259,18 @@ function graphParams(ptitle, pxlabel, pylabel, figname, save_fig, dir_name)
     end
     %set(gca,'XTickLabel',[], 'YTickLabel',[]);
     legend('show');
+end
+function graphParams2(ptitle, pxlabel, pylabel, figname, save_fig, dir_name) 
+    grid on;
+    title(ptitle);
+    xlabel(pxlabel);
+    ylabel(pylabel);
+    set(gca, 'FontSize', 14);
+    set(gcf,'color','w');
+    set(gca,'linewidth',2.5);
+    if save_fig
+        saveas(gcf, dir_name + "\" + figname + ".svg");
+        saveas(gcf, dir_name + "\" + figname + ".fig");
+    end
+    %set(gca,'XTickLabel',[], 'YTickLabel',[]);
 end
