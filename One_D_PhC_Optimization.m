@@ -195,15 +195,18 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     norm_F = F_bulk(ceil(end / 2)); % at theta = 0
 
     figure();
-    psf_opt = F_max  ./ norm_F;
     plot(theta, F_max  ./ norm_F,  'Color', Green, 'DisplayName', '$Max$');  hold on;
     if ~((optimize == 0) & ~isempty(d0))
         plot(theta, F_min  ./ norm_F,  'Color', Red	,  'DisplayName', '$Min$');  hold on;
     end
-    psf_bulk = F_bulk ./ norm_F;
     plot(theta, F_bulk ./ norm_F, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
     
     graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda*1e9), '[nm]'], '$\theta\ [rad]$', '$f$', 'theta', save_fig, dir_name);
+    
+    % Calculating psf
+    psf_opt = F_max   ./ norm_F .* abs(cos(theta).');
+    psf_bulk = F_bulk ./ norm_F .* abs(cos(theta).');
+
     
     %% Plotting y_max
     figure();
@@ -234,7 +237,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     plot(theta, psf_bulk, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
 	plot(theta(1:k:end), reduced_psf_opt, ':', 'Color', Green, 'DisplayName', '$Max$');  hold on;
     plot(theta(1:k:end), reduced_psf_bul, ':', 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
-    graphParams('Reduced psf', '', '', '', 0, '') 
+    graphParams('Reduced psf', '', '', '', 0, '');
     
     % Plotting
     figure();
