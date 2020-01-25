@@ -1,4 +1,4 @@
-function [p_im,mse,mtf] = Image_Processing(im,psf,k,total_size)
+function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Params)
 % This function model the 1D PhC as a filter, and process the image with it
 % Input arguments:
 %   im    - image to be processed
@@ -14,13 +14,19 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,k,total_size)
 
     p_im = im;
     
+    DR = ImageProcessing_Params.DR;
+    nbins = ImageProcessing_Params.nbins;
+    sigma_onion_noise = ImageProcessing_Params.sigma_onion_noise;
+    
     % Calculating the MTF (in logarithmic scale)
     mtf = log(1 + abs(fftshift(fft(psf))));
     
-    reduced_psf = (psf(1:k:end) + psf(2:k:end) + psf(3:k:end)) / 3;
+    % Adding onion noise
+    onion_filter = normpdf(((-nbins/2):(nbins/2)), 0, sigma_onion_noise);
+    psf = conv(psf, onion_filter,'same'); 
     
-    psf_2D  = conv2(reduced_psf.' , reduced_psf); 
-    psf_2D  = psf_2D  / sum(sum(psf_2D) );
+    psf_2D  = conv2(psf.', psf); 
+    psf_2D  = DR * psf_2D  / sum(sum(psf_2D) );
     
     % Adding inefficiency noise
     mu = 3 * 1e6; 
@@ -42,4 +48,3 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,k,total_size)
     mse = immse(im, p_im);
 
 end
-

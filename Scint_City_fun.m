@@ -1,5 +1,7 @@
-function [f] = Scint_City_fun(lambda,theta,d,n,i_scint,dz_Nz, coupled, is_Gz)
+function [f] = Scint_City_fun(lambda,theta,d,n,i_scint,coupled,control)
 %% Constants and Variables
+
+dz_Nz = control.dz_Nz; is_Gz = control.is_Gz; sum_on_z = control.sum_on_z;
 
 num_layers = length(n);
 
@@ -15,25 +17,7 @@ end
 
 d_tot   = [0, d, 0];
 
-if is_Gz
-    max_Nz = dz_Nz;
-    b = zeros(length(i_scint), max_Nz); % distance of dipole from closer bottom interface
-    for i = 1:length(i_scint)
-        delta = d(i_scint(i) - 1) / max_Nz;
-        b(i, 1:max_Nz) = linspace(delta, d(i_scint(i) - 1) - delta, max_Nz);
-    end
-else
-    dz = dz_Nz;
-    Nz = zeros(1, length(i_scint));
-    max_Nz = ceil(max(d(i_scint - 1)) / dz);
-    b = zeros(length(i_scint), max_Nz); % distance of dipole from closer bottom interface
-    for i = 1:length(i_scint)
-        Nz(i) = length(dz : dz : d(i_scint(i) - 1) - dz);
-        b(i, 1:Nz(i)) = dz : dz : d(i_scint(i) - 1) - dz;
-    end
-end
-
-b = repmat(b, 1, 1, N_3rdD);
+[b, max_Nz]	= compute_b(d,i_scint,N_3rdD,is_Gz,dz_Nz);
 d_scint = repmat(d_tot(i_scint).', 1, max_Nz, N_3rdD);
 n_scint = repmat(n(i_scint).',     1, max_Nz, N_3rdD);
 top = d_scint - b; % distance of dipole from closer top interface
@@ -116,20 +100,10 @@ else % Purcel Factor
 
 end
 
-f = squeeze((sum(sum(Gz(f,d_tot(i_scint).',is_Gz), 2), 1)));
-
+if sum_on_z
+    f = squeeze((sum(sum(Gz(f,d_tot(i_scint).',is_Gz), 2), 1)));
 end
 
-function G = Gz(f,d,is_Gz)
-    if is_Gz
-        G = permute(f, [3 2 1]);
-        for i = 1:length(d)
-            G(:,:,i) = G(:,:,i) * d(i);
-        end
-        G = permute(G, [3 2 1]);
-    else
-        G = f;
-    end
 end
 
 function [r] = R_eff(eps,d,u,lambda,type)
