@@ -1,4 +1,4 @@
-function [b, max_Nz] = compute_b(d,i_scint,N_3rdD,is_Gz,dz_Nz)
+function [b, max_Nz] = compute_b(d,i_scint,N_theta,N_lambda,is_Gz,dz_Nz)
     if is_Gz
         max_Nz = dz_Nz;
         b = zeros(length(i_scint), max_Nz); % distance of dipole from closer bottom interface
@@ -17,5 +17,5 @@ function [b, max_Nz] = compute_b(d,i_scint,N_3rdD,is_Gz,dz_Nz)
         end
     end
 
-    b = repmat(b, 1, 1, N_3rdD);
+    b = repmat(b, 1, 1, N_theta, N_lambda);
 end

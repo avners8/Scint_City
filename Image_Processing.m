@@ -18,8 +18,9 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Par
     nbins = ImageProcessing_Params.nbins;
     sigma_onion_noise = ImageProcessing_Params.sigma_onion_noise;
     
-    % Calculating the MTF (in logarithmic scale)
-    mtf = log(1 + abs(fftshift(fft(psf))));
+    % Calculating the MTF
+    mtf = abs(fftshift(fft(psf)));
+    mtf = mtf / mtf(floor(end/2) + 1);
     
     % Adding onion noise
     onion_filter = normpdf(((-nbins/2):(nbins/2)), 0, sigma_onion_noise);
@@ -28,9 +29,8 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Par
     psf_2D  = conv2(psf.', psf); 
     psf_2D  = DR * psf_2D  / sum(sum(psf_2D) );
     
-    % Adding inefficiency noise
-    mu = 3 * 1e6; 
-    p  = tanh(mu * total_size); % the probability that a pixel is not detected
+    % Adding inefficiency noise 
+    p  = 1; % the probability that a pixel is not detected % For the moment no inefficiency noise (p=1)
     bernuli_mat = (rand(size(p_im)) < p)*1;
     p_im = double(p_im) .* bernuli_mat;
     
@@ -45,6 +45,6 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Par
     p_im = uint8(p_im);
     
     % Calculating the mse
-    mse = immse(im, p_im);
+    mse = immse(im, p_im) / (255^2);
 
 end

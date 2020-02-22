@@ -5,66 +5,54 @@ dz_Nz = control.dz_Nz; is_Gz = control.is_Gz; sum_on_z = control.sum_on_z;
 
 num_layers = length(n);
 
-if length(lambda) == 1
-    N_3rdD = length(theta);
-elseif length(theta) == 1
-    N_3rdD = length(lambda);
-else
-    fprintf('theta and lambda can`t be both vectors\n');
-    f = [];
-    return;
-end
+N_theta  = length(theta);
+N_lambda = length(lambda);
 
 d_tot   = [0, d, 0];
 
-[b, max_Nz]	= compute_b(d,i_scint,N_3rdD,is_Gz,dz_Nz);
-d_scint = repmat(d_tot(i_scint).', 1, max_Nz, N_3rdD);
-n_scint = repmat(n(i_scint).',     1, max_Nz, N_3rdD);
+[b, max_Nz]	= compute_b(d,i_scint,N_theta,N_lambda,is_Gz,dz_Nz);
+d_scint = repmat(d_tot(i_scint).', 1, max_Nz, N_theta, N_lambda);
+n_scint = repmat(n(i_scint).',     1, max_Nz, N_theta, N_lambda);
 top = d_scint - b; % distance of dipole from closer top interface
 mask = b ~= 0;
 
 %% Effective Fresnel's coeff calculation
 % R_eff and T_eff return a vector
 
-last_k = 2*pi * n(end) ./ lambda;
-u      = last_k * sin(theta);
+theta_mat  = repmat(theta, 1, 1, N_lambda);
+lambda_mat = permute(repmat(lambda, N_theta, 1, 1), [3,1,2]);
+last_k     = repmat(2*pi * n(end), 1, N_theta, N_lambda)./lambda_mat;
+u          = last_k .* sin(theta_mat);
 
 % R_eff(eps,d,u,lambda,type)  
-r.s_up   = R_eff(n(2:end).^2,[d(2:end) 0],u,lambda,'s');
-r.p_up   = R_eff(n(2:end).^2,[d(2:end) 0],u,lambda,'p');
-r.s_down = R_eff(fliplr(n(1:end - 1).^2),fliplr([0 d(1:end - 1)]),u,lambda,'s');
-r.p_down = R_eff(fliplr(n(1:end - 1).^2),fliplr([0 d(1:end - 1)]),u,lambda,'p');
+r.s_up   = R_eff(n(2:end).^2,[d(2:end) 0],u,lambda_mat,'s');
+r.p_up   = R_eff(n(2:end).^2,[d(2:end) 0],u,lambda_mat,'p');
+r.s_down = R_eff(fliplr(n(1:end - 1).^2),fliplr([0 d(1:end - 1)]),u,lambda_mat,'s');
+r.p_down = R_eff(fliplr(n(1:end - 1).^2),fliplr([0 d(1:end - 1)]),u,lambda_mat,'p');
 
 % T_eff(eps,d,u,r,lambda,type)  
-t.s_up   = T_eff(n(2:end).^2,[d(2:end) 0],u,r.s_up,lambda,'s');
-t.p_up   = T_eff(n(2:end).^2,[d(2:end) 0],u,r.p_up,lambda,'p');
+t.s_up   = T_eff(n(2:end).^2,[d(2:end) 0],u,r.s_up,lambda_mat,'s');
+t.p_up   = T_eff(n(2:end).^2,[d(2:end) 0],u,r.p_up,lambda_mat,'p');
 
 % Choosing only the relevant coeffs
-r.s_up   = r.s_up(i_scint - 1, :);            r.p_up   = r.p_up(i_scint - 1, :); 
-r.s_down = r.s_down(num_layers - i_scint, :); r.p_down = r.p_down(num_layers - i_scint, :);
-t.s_up   = t.s_up(i_scint - 1, :);            t.p_up   = t.p_up(i_scint - 1, :);
+r.s_up   = r.s_up(i_scint - 1, :, :);            r.p_up   = r.p_up(i_scint - 1, :, :); 
+r.s_down = r.s_down(num_layers - i_scint, :, :); r.p_down = r.p_down(num_layers - i_scint, :, :);
+t.s_up   = t.s_up(i_scint - 1, :, :);            t.p_up   = t.p_up(i_scint - 1, :, :);
 
-r.s_up   = permute(repmat(r.s_up,   1, 1, max_Nz), [1 3 2]); 
-r.p_up   = permute(repmat(r.p_up,   1, 1, max_Nz), [1 3 2]); 
-r.s_down = permute(repmat(r.s_down, 1, 1, max_Nz), [1 3 2]); 
-r.p_down = permute(repmat(r.p_down, 1, 1, max_Nz), [1 3 2]); 
-t.s_up   = permute(repmat(t.s_up,   1, 1, max_Nz), [1 3 2]); 
-t.p_up   = permute(repmat(t.p_up,   1, 1, max_Nz), [1 3 2]); 
+r.s_up   = permute(repmat(r.s_up,   1, 1, 1, max_Nz), [1 4 2 3]); 
+r.p_up   = permute(repmat(r.p_up,   1, 1, 1, max_Nz), [1 4 2 3]); 
+r.s_down = permute(repmat(r.s_down, 1, 1, 1, max_Nz), [1 4 2 3]); 
+r.p_down = permute(repmat(r.p_down, 1, 1, 1, max_Nz), [1 4 2 3]); 
+t.s_up   = permute(repmat(t.s_up,   1, 1, 1, max_Nz), [1 4 2 3]); 
+t.p_up   = permute(repmat(t.p_up,   1, 1, 1, max_Nz), [1 4 2 3]); 
 
 %%  Calculating the enhancment for all scintillator's layers
 
-if length(lambda) == 1
-    last_k  = repmat(2*pi * n(end)       / lambda, length(i_scint), max_Nz, N_3rdD);
-    k_scint = repmat(2*pi * n(i_scint).' / lambda, 1, max_Nz , N_3rdD);
-else
-    lambda_mat = permute(repmat(lambda, length(i_scint), 1 , max_Nz), [1 3 2]);
-    last_k  = repmat(2*pi * n(end), length(i_scint), max_Nz, N_3rdD)./lambda_mat;
-    k_scint = repmat(2*pi * n(i_scint).', 1, max_Nz , N_3rdD)./lambda_mat;
-end
-
-
-u = repelem(u, length(i_scint) * max_Nz);
-u = reshape(u, length(i_scint), max_Nz, N_3rdD);
+theta_mat  = permute(repmat(theta' , 1, length(i_scint), max_Nz, N_lambda), [2 3 1 4]);
+lambda_mat = permute(repmat(lambda', 1, length(i_scint), max_Nz, N_theta) , [2 3 4 1]);
+last_k     = repmat(2*pi * n(end), length(i_scint), max_Nz, N_theta, N_lambda)./lambda_mat;
+k_scint    = repmat(2*pi * n(i_scint).', 1, max_Nz , N_theta, N_lambda)./lambda_mat;
+u          = last_k .* sin(theta_mat);
 
 last_l  = sqrt(last_k.^2  - u.^2);
 l_scint = sqrt(k_scint.^2 - u.^2);
@@ -133,7 +121,7 @@ function [r] = R_eff(eps,d,u,lambda,type)
 
 
     if (length(eps)==1)
-        r = zeros(max(length(lambda), length(u)));
+        r = zeros(size(u));
     else
         k1 = 2*pi*(1./lambda)*sqrt(eps(1));
         k2 = 2*pi*(1./lambda)*sqrt(eps(2));
@@ -150,7 +138,7 @@ function [r] = R_eff(eps,d,u,lambda,type)
             return
         end
         R = R_eff(eps(2:end),d(2:end),u,lambda,type);
-        r = [(r12 + R(1,:) .* exp(2i*l2*d(1))) ./ (1 + r12 .* R(1,:) .* exp(2i*l2*d(1))); R];
+        r = [(r12 + R(1,:,:) .* exp(2i*l2*d(1))) ./ (1 + r12 .* R(1,:,:) .* exp(2i*l2*d(1))); R];
     end
 end
 
@@ -181,7 +169,7 @@ function [t] = T_eff(eps,d,u,R,lambda,type)
 
 
     if (length(eps)==1)
-        t = ones(max(length(lambda), length(u)));
+        t = ones(size(u));
     else
         k1 = 2*pi*(1./lambda)*sqrt(eps(1));
         k2 = 2*pi*(1./lambda)*sqrt(eps(2));
@@ -194,13 +182,13 @@ function [t] = T_eff(eps,d,u,R,lambda,type)
             t12 = 2*l1./(l1 + l2);      % TE
         elseif (type == 'p')
             r12 = (l2*eps(1) - l1*eps(2)) ./(l2*eps(1) + l1*eps(2));% TM
-            t12 = 2*l1*sqrt(eps(1)*eps(2))./(l2*eps(1) + l1*eps(2));% TM
+            t12 = 2*l1.*sqrt(eps(1)*eps(2))./(l2*eps(1) + l1*eps(2));% TM
         else
             t = [];
             return
         end
 
-        T = T_eff(eps(2:end),d(2:end),u,R(2:end,:),lambda,type);
-        t = [(t12 .* T(1,:) .* exp(1i*l2*d(1))) ./ (1 + r12 .* R(2,:) .* exp(2i*l2*d(1))); T];
+        T = T_eff(eps(2:end),d(2:end),u,R(2:end,:,:),lambda,type);
+        t = [(t12 .* T(1,:,:) .* exp(1i*l2*d(1))) ./ (1 + r12 .* R(2,:,:) .* exp(2i*l2*d(1))); T];
     end
 end
