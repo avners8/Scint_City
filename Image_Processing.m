@@ -1,4 +1,4 @@
-function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Params)
+function [psf_2D,p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Params)
 % This function model the 1D PhC as a filter, and process the image with it
 % Input arguments:
 %   im    - image to be processed
@@ -26,7 +26,15 @@ function [p_im,mse,mtf] = Image_Processing(im,psf,total_size,ImageProcessing_Par
     onion_filter = normpdf(((-nbins/2):(nbins/2)), 0, sigma_onion_noise);
     psf = conv(psf, onion_filter,'same'); 
     
-    psf_2D  = conv2(psf.', psf); 
+    L = length(psf);
+    mid = ceil(L/2);
+    psf_2D  = zeros(L, L); 
+    i = 1:mid; j = 1:mid;
+    index = round(sqrt((i' - mid).^2 + (j - mid).^2));
+    psf_2D(i',j)     = psf(min(index + mid, L));
+    psf_2D(i',L-j)   = psf(min(index + mid, L));
+    psf_2D(L-i',j)   = psf(min(index + mid, L));
+    psf_2D(L-i',L-j) = psf(min(index + mid, L));
     psf_2D  = DR * psf_2D  / sum(sum(psf_2D) );
     
     % Adding inefficiency noise 

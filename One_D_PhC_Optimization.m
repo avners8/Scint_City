@@ -264,9 +264,16 @@ end
     [x_bulk, psf_bulk] = psf_computation(total_size, n_bulk, 2,       central_lambda,control,ImageProcessing_Params);
     
     image = imread('barbara.png');
-    [p_im_opt,mse_opt,MTF_opt] = Image_Processing(image,psf_opt ,sum(y_max),ImageProcessing_Params);
-    [p_im_bul,mse_bul,MTF_bul] = Image_Processing(image,psf_bulk,total_size,ImageProcessing_Params);
+    [psf_opt_2D, p_im_opt,mse_opt,MTF_opt] = Image_Processing(image,psf_opt ,sum(y_max),ImageProcessing_Params);
+    [psf_bul_2D, p_im_bul,mse_bul,MTF_bul] = Image_Processing(image,psf_bulk,total_size,ImageProcessing_Params);
     
+	[X_opt_1 , X_opt_2] = meshgrid(x_opt*1e-3, x_opt*1e-3);
+    [X_bulk_1, X_bulk_2] = meshgrid(x_bulk*1e-3, x_bulk*1e-3);
+    figure(); mesh(X_opt_1 , X_opt_2 , psf_opt_2D, 'DisplayName', '$Optimized$');  hold on;
+    graphParams2(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers'], '$x [\mu m]$', '$y [\mu m]$', 'psf_opt_2D', save_fig, dir_name);
+    figure(); mesh(X_bulk_1, X_bulk_2, psf_bul_2D, 'DisplayName', '$Bulk$');       hold on;
+    graphParams2(['Bulk theoretical result - ', num2str(2*pairs + 2), ' layers'], '$x [\mu m]$', '$y [\mu m]$', 'psf_bulk_2D', save_fig, dir_name);
+
     psf_normalization = sum(psf_opt);
     
     max_freq = double(1/max_distance)*double(nbins/2)/nbins * 1e6;
