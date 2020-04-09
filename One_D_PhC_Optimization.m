@@ -1,13 +1,12 @@
 function One_D_PhC_Optimization(dz_Nz,          ...
                                 theta,          ...
                                 lambda,         ...
-                                central_lambda, ...
                                 mu_lambda,      ...
                                 sigma_lambda,   ...
                                 pairs,          ...
-                                n_si,           ...
+                                n_substrate,    ...
                                 n_scint,        ...
-                                n_ox,           ...
+                                n_other,           ...
                                 d0,             ...
                                 n,              ...
                                 i_scint,        ...
@@ -19,8 +18,48 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                                 ImageProcessing_Params, ...
                                 save_fig,       ...
                                 dir_name )
-    %% Building the structure
+                            
+    % This function is the main function that is in charge of the
+    % structure's optimization process.
+    % In addition to the optimization, the function show the results for
+    % the given strcutures.
+    % Inputs:
+    % 
+    % theta         - the solid angle in which we optimize (a scalar or a vector)
+    % lambda        - the wavelength in which we optimize (a scalar or a vector)
+    % mu_lambda     - the expected value E of the spectral emission
+    % sigma_lambda  - the std of the spectral emission
+    % pairs         - the structure is based on a substrate, then "pairs" pairs of scintillator and other dialectric layers (a scalar or a vector).
+    % n_substrate   - the refractive ines of the substrate
+    % n_scint       - the refractive ines of the scintillator layers
+    % n_other       - the refractive ines of the other dialetric materials layers
+    % d0            - if the structure is a known structure, d0 is the vector of thicknesses.
+    % n             - if the structure is a known structure, n is the vector of refractive indices.
+    % i_scint       - if the structure is a known structure, i_scint is the vector of indices of the scintillator layers.
+    % is_Gz         - there are two mode of computation - Gz or dz. is_Gz choose between those modes. 
+    % random_iterations - the function performs the optimization process several times with random starting points to improve the results. This choose the number of itarations.
+    % total_size    - Used to define the constraints on the optimization process, and to choose the bulk structure to compare to.
+    % constraint    - Choose the constraint mode. Explained in the GUI
+    % optimize      - if true, it perform the optimization. Otherwise, it expect a known structure.
+    % ImageProcessing_Params - the parameters for the image processing - nbins, max distance of propagation ...
+    % save_fig      - if true saved all the figs 
+    % dir_name      - if save_figs is true, save all figs to specified directory.     
+
+% Drawing
+%             d1      d2      d3       d4     d5
+%           ------- ------- ------- ------- -------     ...
+%          |       |       |       |       |       |
+%          |       |       |       |       |       |
+%          |       |       |       |       |       |
+% substrate| scint | other | scint | other | scint |    ...
+%          |       |       |       |       |       |
+%          |       |       |       |       |       |
+%          |       |       |       |       |       |
+%  n_subst. n_scint n_other n_scint n_other n_scint     ...
+
+    %% Spectral distribution
     
+    % if the std of the spectral distribution is 0, we calculate for only one wavelength.
     if sigma_lambda == 0
         Y_orig = zeros(size(lambda));
         Y_orig(lambda == mu_lambda) = 1;
@@ -34,33 +73,50 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     end
     control.dz_Nz = dz_Nz; control.is_Gz = is_Gz;  control.sum_on_z = true;
 
-    %% Some stuff
+    %% General parameters
 
+    % Saving the original values of theta and lambda. Will bu used when plotting.
     theta_orig = theta;
     lambda_orig = lambda;
 
+    % Defining the colors in the plots.
     Green = [0.4660 0.6740 0.1880];
     Red   = [0.6350 0.0780 0.1840];
     Gold  = [0.9290 0.6940 0.1250];
-
+    
+    % Adding the current directory to the provided folder name.
+    % Make sure the folder was created before using this function.
     dir_name = [pwd, '\', dir_name];
 
 
     %% Calculating the minimum using Matlab Optimization Toolbox
 
+    % Scint_City compute the emission rate enhancment of the coupled wave
+    % (outside the structure) and the wave inside the device.
     coupled = true;
     inside  = false;
-	   
+	
+    % If Y is a single wavelength, transforming Y to a scalar
     if sigma_lambda == 0
        lambda = mu_lambda;
        Y      = 1;
     end
+    
+    
     if optimize
-        n_bulk  = [n_si n_scint 1];
+        n_bulk  = [n_substrate n_scint 1];
     else
         n_bulk  = [n(1) n(i_scint(1)) n(end)];
     end
     
+    % There is two modes of operation.
+    % First mode is optimize: in this mode the function get the constraints
+    % and the general parameters of the structure. The function find an
+    % optimized structure in term of emission rate.
+    % Secondly, the function get a known structure, and compute it's
+    % emission rate enhancment and efficiency. 
+    
+    % This section is relavant only for the optimization process.
     if optimize
         y_max_max = 0;
         F_max_max = 0;
@@ -69,7 +125,9 @@ function One_D_PhC_Optimization(dz_Nz,          ...
         % Iterating on number of layers in the structure
         for p = 1:length(pairs)
             
-            n       = [n_si, repmat([n_scint, n_ox], 1 , pairs(p)), 1];
+            % Creating n and i_scint, for the specific structure with
+            % "pairs" pairs.
+            n       = [n_substrate, repmat([n_scint, n_other], 1 , pairs(p)), 1];
             i_scint = 2:2:2 * pairs(p);
             
             i_other = zeros(1,length(n) - length(i_scint) - 2);
@@ -88,8 +146,9 @@ function One_D_PhC_Optimization(dz_Nz,          ...
             even = 0.5 * (1+(-1).^(1:(2*pairs(p))));
             odd  = 0.5 * (1+(-1).^(0:(2*pairs(p) - 1)));
 
-            % Defining the constraints - Ad=b
-            % Total oxide size is equal to total size 
+            % Defining the set of linear constraints - Ad=b
+            % There are 3 possible constraints.
+            
             A = [];
             b = [];
             if constraint == 1      % 1: Total scint and Total other equal Total size
@@ -104,10 +163,12 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                 Aeq = [ones(1,2*pairs(p))];
                 beq = [total_size];                
             end
+            
             lb = zeros(1, 2*pairs(p));
             ub = total_size*ones(1, 2*pairs(p));
             
-            % Randomizing starting point to improve optimal point
+            % Randomizing starting point to improve optimal point.
+            % Done several times and each time saving the best result.
             for i = 1:random_iterations
                 
                 d = rand(1,2 * pairs(p));
@@ -127,21 +188,21 @@ function One_D_PhC_Optimization(dz_Nz,          ...
 
                 fprintf(['Pairs: ', num2str(pairs(p)), ', Iteration: ', num2str(i), '/', num2str(random_iterations), '\n']);
                 % Calling fmincon 
-                [y_max,F_max_val,exitflag1,output_max] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
+                [optimized_d,F_max_val,exitflag1,output_max] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
                 F_max_val = -F_max_val;
 
                 if F_max_val > F_max_max
                     F_max_max = F_max_val;
-                    y_max_max = y_max;
+                    y_max_max = optimized_d;
                     pairs_max = pairs(p);
                 end
             end
         end
         
         % chosen parameters from optimization
-        y_max = y_max_max;
+        optimized_d = y_max_max;
         pairs = pairs_max;
-        n       = [n_si, repmat([n_scint, n_ox], 1 , pairs), 1];
+        n       = [n_substrate, repmat([n_scint, n_other], 1 , pairs), 1];
         i_scint = 2:2:2 * pairs;
         
         Scint_City_aux = @(d)sum(Scint_City_fun(lambda,theta,d,n,i_scint,coupled,control) ...
@@ -150,30 +211,39 @@ function One_D_PhC_Optimization(dz_Nz,          ...
         [y_min,F_min_val,exitflag2,output_min] = fmincon(Scint_City_aux, d, A, b, Aeq, beq, lb, ub);
     end
     
+    % in known structure mode, the thicknesses are known
     if ((optimize == 0) & ~(isempty(d0)))
-        y_max = d0;
+        optimized_d = d0;
     end
+    
+    % At the end of this section we calculated the thicknesses of the
+    % structure. Now we will plot the efficienc and emission rate of the
+    % structure.
     
     %% Calculting results
     %% Plotting optimal result - Efficiency
+    
+    % Calculating the efficiency - the emission rate outside the device,
+    % devided by the emission rate inside
+    
     lambda  = lambda_orig;
     theta   = theta_orig;
     if constraint == 3 % Normalizing with the Total size of the structure
-        total_size = sum(y_max);
+        total_size = sum(optimized_d);
     else % Normalizing only with the size of the scintillator
-        total_size = sum(y_max(i_scint - 1));
+        total_size = sum(optimized_d(i_scint - 1));
     end
 
 if length(theta_orig) == 1
     Y      = Y_orig;
     
-    Pf_max  = Scint_City_fun(lambda,theta,y_max,n,i_scint,inside,control);
+    Pf_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,inside,control);
     if ~((optimize == 0) | ~isempty(d0))
         Pf_min  = Scint_City_fun(lambda,theta,y_min,n,i_scint,inside,control);
     end
     Pf_bulk = Scint_City_fun(lambda,theta,total_size,n_bulk,2,inside,control);
 
-    F_max_lambda  = Scint_City_fun(lambda,theta,y_max,n,i_scint,coupled,control);
+    F_max_lambda  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
     if ~((optimize == 0) | ~isempty(d0))
         F_min_lambda  = Scint_City_fun(lambda,theta,y_min,n,i_scint,coupled,control);
     end
@@ -197,10 +267,12 @@ if length(theta_orig) == 1
     graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers'], '$\lambda \ [nm]$', '$\eta (\lambda) Y(\lambda)$', 'efficiency', save_fig, dir_name); 
 end
     %% Plotting optimal result - theta dependency
-
+    
+    % Plotting the emission rate as a function of the angle
+    
     theta = linspace(-pi/2, pi/2, 1001);
-    lambda = central_lambda;
-    F_max  = Scint_City_fun(lambda,theta,y_max,n,i_scint,coupled,control);
+    lambda = mu_lambda;
+    F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
     if ~((optimize == 0) | ~isempty(d0))
         F_min  = Scint_City_fun(lambda,theta,y_min,n,i_scint,coupled,control);
     end
@@ -220,7 +292,7 @@ end
 if length(lambda_orig) > 1 & length(theta_orig) > 1
     theta = linspace(-pi/2, pi/2, 1001);
     lambda = lambda_orig;
-    F_max  = Scint_City_fun(lambda,theta,y_max,n,i_scint,coupled,control);
+    F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
     if ~((optimize == 0) | ~isempty(d0))
         F_min  = Scint_City_fun(lambda,theta,y_min,n,i_scint,coupled,control);
     end
@@ -242,14 +314,14 @@ if length(lambda_orig) > 1 & length(theta_orig) > 1
     contourf(theta, lambda, F_bulk ./ norm_F, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
     graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers'], '$\theta\ [rad]$', '$f$', 'theta_lambda_bulk', save_fig, dir_name); colorbar;
 end
-    %% Plotting y_max
+    %% Plotting optimized_d
     figure();
-    plot(1:length(y_max), y_max, 'DisplayName', 'All');  hold on;
-    plot(i_scint-1, y_max(i_scint - 1), 'ro', 'DisplayName', 'Scint');  hold on;
-    graphParams(['Optimal thicknesses - ', num2str(2*pairs + 2), ' layers'], '$Layer\ Number$', '$Y_{max}$[nm]', 'y_max', save_fig, dir_name);
-    y_max_nm = y_max;
+    plot(1:length(optimized_d), optimized_d, 'DisplayName', 'All');  hold on;
+    plot(i_scint-1, optimized_d(i_scint - 1), 'ro', 'DisplayName', 'Scint');  hold on;
+    graphParams(['Optimal thicknesses - ', num2str(2*pairs + 2), ' layers'], '$Layer\ Number$', '$Y_{max}$[nm]', 'optimized_d', save_fig, dir_name);
+    y_max_nm = optimized_d;
     if save_fig
-        save(dir_name + "\y_max.mat", 'y_max_nm');
+        save(dir_name + "\optimized_d.mat", 'y_max_nm');
     end
 
     %% Plotting MTF and Test image
@@ -260,11 +332,11 @@ end
     max_distance = ImageProcessing_Params.max_distance;
     
     % Calculating psf
-    [x_opt, psf_opt]   = psf_computation(y_max,      n,      i_scint, central_lambda,control,ImageProcessing_Params);
-    [x_bulk, psf_bulk] = psf_computation(total_size, n_bulk, 2,       central_lambda,control,ImageProcessing_Params);
+    [x_opt, psf_opt]   = psf_computation(optimized_d, n,      i_scint, mu_lambda,control,ImageProcessing_Params);
+    [x_bulk, psf_bulk] = psf_computation(total_size,  n_bulk, 2,       mu_lambda,control,ImageProcessing_Params);
     
     image = imread('barbara.png');
-    [psf_opt_2D, p_im_opt,mse_opt,MTF_opt] = Image_Processing(image,psf_opt ,sum(y_max),ImageProcessing_Params);
+    [psf_opt_2D, p_im_opt,mse_opt,MTF_opt] = Image_Processing(image,psf_opt ,sum(optimized_d),ImageProcessing_Params);
     [psf_bul_2D, p_im_bul,mse_bul,MTF_bul] = Image_Processing(image,psf_bulk,total_size,ImageProcessing_Params);
     
 	[X_opt_1 , X_opt_2] = meshgrid(x_opt*1e-3, x_opt*1e-3);
