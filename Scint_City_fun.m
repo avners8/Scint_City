@@ -96,9 +96,9 @@ if coupled
     T_perp_p_up = t.p_up .* (1 - r.p_down .* exp(2i * l_scint .* b)) ./ (1 - r.p_down .* r.p_up .* exp(2i * l_scint .* d_scint)) ;
     temp = (1/4) * (k .* last_l.^2 ./ k_scint.^3);
 
-    Par_s_up  = temp .* ( k_scint.^2 .* (n_scint / n(end)).^2 .* abs( T_par_s_up ./ l_scint ).^2) ;
-    Par_p_up  = temp .* abs( T_par_p_up ).^2 ;
-    Perp_p_up = temp .* u.^2 .*abs( T_perp_p_up ./ l_scint ).^2 ;
+    Par_s_up  = temp .* ( k_scint.^2 .* (n_scint / n(end)).^2 .* abs( T_par_s_up ./ l_scint .* exp(1i * l_scint .* top)).^2) ;
+    Par_p_up  = temp .* abs( T_par_p_up .* exp(1i * l_scint .* top)).^2 ;
+    Perp_p_up = temp .* u.^2 .*abs( T_perp_p_up ./ l_scint .* exp(1i * l_scint .* top)).^2 ;
 
     f = (Par_s_up + Par_p_up + Perp_p_up) .* mask;
 
