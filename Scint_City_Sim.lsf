@@ -1,0 +1,263 @@
+matlabload("Lumerical");
+File_Name = Lumerical.file_name;
+switchtolayout;
+deleteall;
+
+# Inputs
+    
+    lambda 	= Lumerical.lambda * 1e-9;
+    span		= Lumerical.span * 1e-9;
+    num_lambda	= Lumerical.num_lambda;
+    
+    #n_base	= Lumerical.n_base;
+    #n_scint	= Lumerical.n_scint;
+    #n_ox		= Lumerical.n_ox;
+    #n_end		= Lumerical.n_end;
+    
+    n 		= Lumerical.n;
+
+    d 		= Lumerical.d * 1e-9;
+                           
+    dz 		= Lumerical.dz * 1e-9;
+    num_theta 	= Lumerical.num_theta;
+    i_scint 	= Lumerical.i_scint;
+    
+    mesh_accu 	= Lumerical.mesh_accu;    
+    
+    #lambda 	= 430e-9;
+    #span		= 40e-9;
+    #num_lambda	= 101;
+    
+    #n_base	= 4.3;
+    #n_scint	= 1.59;
+    #n_ox		= 2.1;
+    #n_end		= 1;
+    
+    #n 		= [n_base, n_scint, n_end];
+
+    #d 		= [1082]*1e-9;
+                           
+    #dz 		= 10e-9;
+    #num_theta 	= 201;
+    #i_scint 	= 2;
+    
+    #FDTD_width = 40e-6;
+    #FDTD_dist_to_last_interface = 3e-6;
+    #structure_length = sum(d);
+    #monitor_dist_to_interface = 2e-6;
+    #FDTD_width = 100*lambda;
+    #FDTD_dist_to_last_interface = 10*lambda;
+    #structure_length = sum(d);
+    #monitor_dist_to_interface = 7*lambda;
+
+    sim_width_param = Lumerical.sim_width_param; 
+    
+    structure_length = sum(d);
+    FDTD_dist_to_last_interface = 5*lambda;
+    FDTD_width = tan(asin(1/min(n(find(n>1)))))*structure_length + sim_width_param*FDTD_dist_to_last_interface;
+    monitor_dist_to_interface = 3*lambda;
+
+# Constants
+    d_tot = [0, d, 100e-6];
+    runsims = 1; # set to 0 if simulation already ran
+    num_sim = 0;
+    sim_count = 0;
+    for(i = 1:length(i_scint)){
+        switchtolayout;
+        z = (sum(d_tot(1:i_scint(i)-1)) + dz : dz : sum(d_tot(1:i_scint(i))) - dz); # Locations of dipole
+        num_sim = num_sim + length(z)*3;
+    #for(i = i_scint){
+        #num_sim = num_sim + ceil(d(i-1)/dz - 2)*3;
+    }    
+
+# Building the objects
+
+    # Layers
+    
+    # First layer  
+    addrect;
+    set("name","Layer_0");
+    set("z max",FDTD_width + 10e-6);
+    set("z min",-FDTD_width - 10e-6);
+    set("y max",FDTD_width + 10e-6);
+    set("y min",-FDTD_width - 10e-6);
+    set("x max",0);
+    set("x min",-100e-6);
+    set("material","<Object defined dielectric>");
+    set("index",n(1));
+    
+    # Other layers
+    for(i = 2:length(n)){
+        addrect;
+        set("name","Layer_" + num2str(i-1));
+        set("z max",FDTD_width + 10e-6);
+        set("z min",-FDTD_width - 10e-6);
+        set("y max",FDTD_width + 10e-6);
+        set("y min",-FDTD_width - 10e-6);
+        set("x max",sum(d_tot(1:i)));
+        set("x min",sum(d_tot(1:i-1)));
+        set("material","<Object defined dielectric>");
+        set("index",n(i));
+    }
+    
+    # FDTD mesh
+    addfdtd;
+    set("dimension",1);  #  1 = 2D, 2 = 3D
+    set("mesh accuracy",mesh_accu);
+    set("x max",structure_length + FDTD_dist_to_last_interface);
+    set("x min",-0.5*FDTD_dist_to_last_interface);
+    set("y max",FDTD_width);
+    set("y min",-FDTD_width);
+    set("z",0);
+    set("y min bc","Symmetric");
+    
+    # Dipole
+    #addgaussian;
+    adddipole;
+    set("name","Source");
+    set("x",1e-9); # FIXXXXXXXX to dz or not
+    set("y",0);
+    set("z",0);
+    set("theta",0);
+    set("phi",0);
+    set("center wavelength",lambda);
+    set("wavelength span",span);
+    
+    # DFT monitor
+    addpower;
+    set("name","Monitor");
+    set("monitor type",3);  # 7 = 2D z-normal FIXXXXXXXXXXXXX
+    set("z",0);
+    set("y max",FDTD_width + 10e-6);
+    set("y min",-FDTD_width - 10e-6);
+    set("x",structure_length + monitor_dist_to_interface);
+    setglobalmonitor("frequency points",num_lambda);
+    
+# Simulation
+    if(runsims){
+        save(File_Name);  
+        
+        X = matrix(num_theta,num_lambda);
+        Y = matrix(num_theta,num_lambda);
+        Z = matrix(num_theta,num_lambda);
+        eta = matrix(num_lambda,1);
+        
+        for(i = 1:length(i_scint)){
+            switchtolayout;
+            z = (sum(d_tot(1:i_scint(i)-1)) + dz : dz : sum(d_tot(1:i_scint(i))) - dz); # Locations of dipole
+            for(j=1:length(z)){
+	                
+                # Z orienting dipole
+                switchtolayout;
+                setnamed("Source","theta",0);
+                setnamed("Source","phi",0);
+                setnamed("Source","x",z(j));
+                
+                setnamed("FDTD","y min bc","Symmetric");
+                
+                sim_count = sim_count + 1;
+                ?"running " + num2str(sim_count) + " of " + num2str(num_sim) + " simulations";
+                run; # use argument?
+                
+                                
+                farfieldfilter(1);
+                Data_E2z = farfield2d("Monitor",1:num_lambda,num_theta);
+                Data_Tz = transmission("Monitor");
+                theta2 = farfieldangle("Monitor",1,num_theta);
+                Data_E0z = farfield2dintegrate(Data_E2z,theta2);
+                
+                
+                
+                # X orienting dipole
+                switchtolayout;
+                setnamed("Source","theta",90);
+                setnamed("Source","phi",0);
+                setnamed("Source","x",z(j));
+                
+                setnamed("FDTD","y min bc","Symmetric");
+                
+                sim_count = sim_count + 1;
+                ?"running " + num2str(sim_count) + " of " + num2str(num_sim) + " simulations";
+                run;
+                
+                
+                farfieldfilter(1);
+                Data_E2x = farfield2d("Monitor",1:num_lambda,num_theta);
+                Data_Tx = transmission("Monitor");
+                theta2 = farfieldangle("Monitor",1,num_theta);
+                Data_E0x = farfield2dintegrate(Data_E2x,theta2);
+                
+                
+                # Y orienting dipole
+                switchtolayout;
+                setnamed("Source","theta",90);
+                setnamed("Source","phi",90);
+                setnamed("Source","x",z(j));
+                
+                setnamed("FDTD","y min bc","Anti-Symmetric");
+                
+                sim_count = sim_count + 1;
+                ?"running " + num2str(sim_count) + " of " + num2str(num_sim) + " simulations";
+                run;
+                           
+                
+                farfieldfilter(1);
+                Data_E2y = farfield2d("Monitor",1:num_lambda,num_theta);
+                Data_Ty = transmission("Monitor");
+                theta2 = farfieldangle("Monitor",1,num_theta);
+                Data_E0y = farfield2dintegrate(Data_E2y,theta2);
+                
+    
+                f0 = getdata("Monitor","f");
+                pur = getresult("Source","purcell");
+                pf = interp(pur.purcell,pur.f,f0);
+                
+                Data_E2xy = farfield2dintegrate(Data_E2x + Data_E2y,theta2);
+                
+                for(k = 1:num_theta) {
+                    Z(k,:) = Z(k,:) + Data_E2z(k,:) * transpose(Data_Tz) * n(i_scint(i))^2 / Data_E0z; # FIXXXX divide by epsilon of last layer
+                    X(k,:) = X(k,:) + Data_E2x(k,:) * transpose(Data_Tx + Data_Ty) / (2 * Data_E2xy);
+                    Y(k,:) = Y(k,:) + Data_E2y(k,:) * transpose(Data_Tx + Data_Ty) / (2 * Data_E2xy);
+                }
+                
+                
+                eta = eta + (1/3)*(Data_Tx + Data_Ty + Data_Tz);
+                save(File_Name);
+                
+            }# End of location (z0) loop (j)
+            
+            # Calculating more results
+            
+            theta0 = pi/180*theta2;
+            
+            f0 = getdata("Monitor","f");
+            
+            # Saving data to .mat file (MATLAB)
+            Lumerical_results = struct;
+            Lumerical_results.theta0 = theta0;
+            Lumerical_results.lambda = lambda;
+            Lumerical_results.f0 = f0;            
+            Lumerical_results.X = X;
+            Lumerical_results.Y = Y;
+            Lumerical_results.Z = Z;
+            Lumerical_results.i = i;
+            Lumerical_results.j = j;          
+            #Lumerical_results.j = n_base;             
+            #Lumerical_results.j = n_ox; 
+            #Lumerical_results.j = n_scint; 
+            #Lumerical_results.j = n_end; 
+            Lumerical_results.lambda = lambda; 
+            Lumerical_results.n = n; 
+            Lumerical_results.d = d; 
+            Lumerical_results.i_scint = i_scint; 
+            Lumerical_results.dz = dz; 
+            matlabsave(File_Name,Lumerical_results);
+            ?"Created: " + File_Name + ".mat";            
+            
+            
+            #matlabsave(File_Name,n_base,n_ox,n_scint,n_end,lambda,n,d,i_scint,dz,theta0,f0,X,Y,Z,i,j,eta);
+            #?"Created: " + File_Name + ".mat";
+                    
+        }# End of Oxide loop (i)
+        matlabsave('FINISHED_'+File_Name,lambda);
+    } 

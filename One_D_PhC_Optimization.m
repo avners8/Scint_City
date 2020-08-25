@@ -17,7 +17,8 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                                 optimize,       ...
                                 ImageProcessing_Params, ...
                                 save_fig,       ...
-                                dir_name )
+                                dir_name,       ...
+                                simulation_params)
                             
     % This function is the main function that is in charge of the
     % structure's optimization process.
@@ -44,6 +45,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     % ImageProcessing_Params - the parameters for the image processing - nbins, max distance of propagation ...
     % save_fig      - if true saved all the figs 
     % dir_name      - if save_figs is true, save all figs to specified directory.     
+    % simulation_params
 
 % Drawing
 %             d1      d2      d3       d4     d5
@@ -78,11 +80,18 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     % Saving the original values of theta and lambda. Will bu used when plotting.
     theta_orig = theta;
     lambda_orig = lambda;
+    num_theta_plot = 1001;
 
     % Defining the colors in the plots.
-    Green = [0.4660 0.6740 0.1880];
-    Red   = [0.6350 0.0780 0.1840];
-    Gold  = [0.9290 0.6940 0.1250];
+    lighter = - 0.071;
+
+    Green = [0.4660 0.6740 0.1880] - lighter;
+    Red   = [0.6350 0.0780 0.1840] - lighter;
+    Gold  = [0.9290 0.6940 0.1250] - lighter;
+
+    Green_Sim = [0.4660 0.6740 0.1880] + lighter;
+    Red_Sim   = [0.6350 0.0780 0.1840] + lighter;
+    Gold_Sim  = [0.9290 0.6940 0.1250] + lighter;
     
     % Adding the current directory to the provided folder name.
     % Make sure the folder was created before using this function.
@@ -219,7 +228,9 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     % At the end of this section we calculated the thicknesses of the
     % structure. Now we will plot the efficienc and emission rate of the
     % structure.
-    
+
+
+
     %% Calculting results
     %% Plotting optimal result - Efficiency
     
@@ -270,7 +281,7 @@ end
     
     % Plotting the emission rate as a function of the angle
     
-    theta = linspace(-pi/2, pi/2, 1001);
+    theta = linspace(-pi/2, pi/2, num_theta_plot);
     lambda = mu_lambda;
     F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
     if ~((optimize == 0) | ~isempty(d0))
@@ -290,7 +301,7 @@ end
     graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda), '[nm]'], '$\theta\ [rad]$', '$f$', 'theta', save_fig, dir_name);
     
 if length(lambda_orig) > 1 & length(theta_orig) > 1
-    theta = linspace(-pi/2, pi/2, 1001);
+    theta = linspace(-pi/2, pi/2, num_theta_plot);
     lambda = lambda_orig;
     F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
     if ~((optimize == 0) | ~isempty(d0))
@@ -370,6 +381,91 @@ end
     subplot(1,3, 2); imshow(p_im_bul); graphParams2(['Bulk: MSE = ', num2str(mse_bul)],      '', '', '', 0, '');
     subplot(1,3, 3); imshow(p_im_opt); graphParams2(['Optimized: MSE = ', num2str(mse_opt)], '', '', 'barbara', save_fig, dir_name);
     
+    
+    %% Save
+    if save_fig
+        save([dir_name,'\workspace']);
+    end
+    
+    %% Lumerical Simulation
+    Simulate = simulation_params.simulate;
+    if Simulate & ~is_Gz
+        lumerical_path = simulation_params.lumerical_path;
+        
+        
+        structure_name = 'Sim';
+        span		= max(lambda_orig) - min(lambda_orig);
+        num_lambda	= length(lambda_orig);
+
+        Lumerical.file_name = ['Lumerical_',structure_name]; 
+        Lumerical.mesh_accu = 3; % Affect results accuracy - Recommended value for fast simulation: 3. Recommended value for high accuracy: 7.
+        Lumerical.sim_width_param = 10; % Affect high angles result accuracy. Recommended minimal value: 10.
+        Lumerical.lambda = mu_lambda;
+        Lumerical.span = span;
+        Lumerical.num_lambda = num_lambda;
+        Lumerical.d = optimized_d;
+        Lumerical.dz = dz_Nz;
+        Lumerical.num_theta = num_theta_plot;
+        Lumerical.i_scint = i_scint;
+        Lumerical.n = n;
+        save('Lumerical.mat','Lumerical'); 
+        command = ['"', lumerical_path, '" -run Scint_City_Sim.lsf -exit'];
+%         command = ['"', lumerical_path, '" -run Scint_City_Sim.lsf'];
+        return_val = system(command);
+    %     assert(logical(return_val) ,'Simulation failed to run');
+    
+        load(['Lumerical_', structure_name], 'Lumerical_results');
+        
+        Lumerical_results_Opt = Lumerical_results;
+
+        F_Sim_Opt = Lumerical_results_Opt.X+Lumerical_results_Opt.Y+Lumerical_results_Opt.Z;
+        
+        Lumerical.d = total_size;
+        Lumerical.i_scint = 2;
+        Lumerical.n = n_bulk;
+        save('Lumerical.mat','Lumerical'); 
+        
+        return_val = system(command);
+        
+        load(['Lumerical_', structure_name], 'Lumerical_results');
+        
+        Lumerical_results_Bulk = Lumerical_results;
+        
+        F_Sim_Bulk = Lumerical_results_Bulk.X+Lumerical_results_Bulk.Y+Lumerical_results_Bulk.Z;
+        
+        c = 299792458;
+        sim_lambda = c./Lumerical_results.f0' * 1e9;
+        sim_theta = Lumerical_results.theta0';
+        sim_d = Lumerical_results.d * 1e9;
+        
+        lambda = lambda_orig;
+        F_max  = Scint_City_fun(lambda,sim_theta,optimized_d,n,i_scint,coupled,control);
+
+        F_bulk = Scint_City_fun(lambda,sim_theta,total_size,n_bulk,2,coupled,control);
+        norm_F_theo = sum(F_bulk(ceil(end / 2),:).*Y); % at theta = 0
+        norm_F_sim = sum(F_Sim_Bulk(ceil(end / 2),:).*Y); % at theta = 0
+        
+        figure;
+        hold on;
+        plot(sim_theta, sum(F_max.*Y,2)/norm_F_theo,  'Color', Green, 'DisplayName', 'Opt - Theory');
+        plot(sim_theta, sum(F_Sim_Opt.*Y,2)/norm_F_sim, ':',  'Color', Green_Sim, 'DisplayName', 'Opt - Simulation');
+        plot(sim_theta, sum(F_bulk.*Y,2)/norm_F_theo,  'Color', Gold, 'DisplayName', 'Bulk - Theory');
+        plot(sim_theta, sum(F_Sim_Bulk.*Y,2)/norm_F_sim, ':',  'Color', Gold_Sim, 'DisplayName', 'Bulk - Simulation');
+
+        legend('show');
+        grid on;
+        xlabel('$\theta$ [rad]');
+        ylabel('Angular power');
+        hold off;
+
+        % xticklabels({});
+        % yticklabels({});
+        xticks([-pi/2 -pi/4 0 pi/4 pi/2]);
+        % yticks([0 1 2 3 4 5 6]);
+        set(gca,'linewidth',2.5);
+        set(gca, 'FontSize', 14);
+        box on;
+    end
     
     %% Save
     if save_fig
