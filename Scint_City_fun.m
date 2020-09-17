@@ -121,7 +121,7 @@ else % Purcel Factor
 end
 
 if sum_on_z
-    f = squeeze((sum(sum(Gz(f,d_tot(i_scint).',is_Gz), 2), 1)));
+    f = squeeze((sum(sum(Gz(f,d_tot.',i_scint,control), 2), 1)));
 end
 
 end

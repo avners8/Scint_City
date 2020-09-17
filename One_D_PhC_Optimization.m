@@ -1,4 +1,4 @@
-function One_D_PhC_Optimization(dz_Nz,          ...
+function One_D_PhC_Optimization(                ...
                                 theta,          ...
                                 lambda,         ...
                                 mu_lambda,      ...
@@ -10,7 +10,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                                 d0,             ...
                                 n,              ...
                                 i_scint,        ...
-                                is_Gz,          ...
+                                control,          ...
                                 random_iterations, ...
                                 total_size,     ...
                                 lower_bound,    ...
@@ -76,7 +76,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
     else
         Y      = repmat(Y_orig, length(theta), 1);
     end
-    control.dz_Nz = dz_Nz; control.is_Gz = is_Gz;  control.sum_on_z = true;
+    dz_Nz = control.dz_Nz; is_Gz = control.is_Gz;  control.sum_on_z = true;
 
     %% General parameters
 
@@ -148,7 +148,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                 if j - 1 == i_scint(count_scint)
                     count_scint = count_scint + 1;
                 else
-                    i_other(count_other) = j - 1;
+                    i_other(count_other) = j + 1;
                     count_other = count_other + 1;
                 end
             end
@@ -187,8 +187,8 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                 
                 % applying total size constraint
                 if constraint == 1
-                    d(i_scint) = total_size * d(i_scint) / sum(d(i_scint));
-                    d(i_other) = total_size * d(i_other) / sum(d(i_other));
+                    d(i_scint - 1) = total_size * d(i_scint - 1) / sum(d(i_scint - 1));
+                    d(i_other - 1) = total_size * d(i_other - 1) / sum(d(i_other - 1));
                 elseif constraint == 2
                     d = total_size * d;
                 else
@@ -199,7 +199,7 @@ function One_D_PhC_Optimization(dz_Nz,          ...
                     % In this mode we optimize the efficiency of the
                     % structure, which is the overall emission (in all
                     % angles).
-                    theta_optimization = linspace(-pi/2, pi/2, 101);
+                    theta_optimization = linspace(0, pi/2, 101);
                     Scint_City_aux = @(d)-(sin(theta_optimization) * (Scint_City_fun(lambda,theta_optimization,d,n,i_scint,    coupled,control) * (Y'))) ...
                                         / (sin(theta_optimization) * (Scint_City_fun(lambda,theta_optimization,sum(d),n_bulk,2,coupled,control) * (Y'))) ;
                 else % Directionality mode
@@ -344,10 +344,15 @@ end
     y_max_nm = optimized_d;
     if save_fig
         save(dir_name + "\optimized_d.mat", 'y_max_nm');
+        save(dir_name + "\n.mat", 'n');
+        save(dir_name + "\i_scint.mat", 'i_scint');
     end
 
     %% Plotting MTF and Test image
     
+    if ~ImageProcessing_Params.Show_Image_Processing
+        return;
+    end
     ImageProcessing_Params.DR = 1; % Dynamic range
     ImageProcessing_Params.max_distance = 1000;
     nbins = ImageProcessing_Params.nbins;

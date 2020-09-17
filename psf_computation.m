@@ -15,6 +15,7 @@ function [x,psf] = psf_computation(d,n,i_scint,lambda,control,ImageProcessing_Pa
     control.sum_on_z = false;
     coupled = true;
     is_Gz = control.is_Gz;
+    d_tot   = [0, d, 0];
     
     h = ImageProcessing_Params.h;
     max_distance = ImageProcessing_Params.max_distance;
@@ -40,7 +41,7 @@ function [x,psf] = psf_computation(d,n,i_scint,lambda,control,ImageProcessing_Pa
    left_limit = -right_limit;
    nbins = ImageProcessing_Params.nbins;
    quantized_x = linspace(left_limit,right_limit,nbins);
-   g_f = Gz(f .* mask .* mask_h,d(i_scint-1).',is_Gz);
+   g_f = Gz(f .* mask .* mask_h,d_tot.',i_scint,control);
    psf = zeros(size(quantized_x));
    for i = 1 : length(i_scint)
      for b_i = 1 : max_Nz
@@ -59,7 +60,8 @@ end
 function [x,mask_h] = Ts(d,n,i_scint,layer_index,z,h,theta)
     if layer_index == i_scint
         [x,mask_h] = Ts(d, n, i_scint, layer_index + 1, z, h, theta);
-        x = x + z .* tan(theta);
+        mask_h = imag(theta) == 0;
+        x = x + z .* tan(theta) .* mask_h;
     else
         theta2 = asin((n(layer_index-1) ./ n(layer_index)) .* sin(theta));
         if layer_index - 1 > length(d)
@@ -67,7 +69,8 @@ function [x,mask_h] = Ts(d,n,i_scint,layer_index,z,h,theta)
             x = h .* tan(theta2) .* mask_h;
         else
             [x,mask_h] = Ts(d, n, i_scint, layer_index + 1, z, h, theta2);
-            x = x + d(layer_index - 1) .* tan(theta2);
+            mask_h = imag(theta2) == 0;
+            x = x + d(layer_index - 1) .* tan(theta2) .* mask_h;
         end
     end
 end
