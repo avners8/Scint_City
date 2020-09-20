@@ -114,6 +114,11 @@ function One_D_PhC_Optimization(                ...
        Y      = 1;
     end
     
+    if ((optimize == 0) & control.load_data_from_dir)
+        load(dir_name + "\optimized_d.mat");
+        load(dir_name + "\n.mat");
+        load(dir_name + "\i_scint.mat"); 
+    end
     
     if optimize
         n_bulk  = [n_substrate n_scint 1];
@@ -164,16 +169,17 @@ function One_D_PhC_Optimization(                ...
             A = [];
             b = [];
             if constraint == 1      % 1: Total scint and Total other equal Total size
-                Aeq = [even];
-                beq = [total_size];
-%                 Aeq = [even;odd];
-%                 beq = [total_size,total_size];
+                Aeq = [even;odd];
+                beq = [total_size,total_size];
             elseif constraint == 2  % 2: Each layer is between 0 and Total size
                 Aeq = [];
                 beq = [];
-            else                    % 3: Total size of the structure (Scint + Other) eqaul to Total size
+            elseif constraint == 3  % 3: Total size of the structure (Scint + Other) eqaul to Total size
                 Aeq = [ones(1,2*pairs(p))];
-                beq = [total_size];                
+                beq = [total_size];      
+            else                    % 4: Total scint equal to Total size
+                Aeq = [even];
+                beq = [total_size];
             end
             
             lb = lower_bound*ones(1, 2*pairs(p));
@@ -191,8 +197,11 @@ function One_D_PhC_Optimization(                ...
                     d(i_other - 1) = total_size * d(i_other - 1) / sum(d(i_other - 1));
                 elseif constraint == 2
                     d = total_size * d;
-                else
+                elseif constraint == 3
                     d = total_size * d / sum(d);
+                else
+                    d(i_scint - 1) = total_size * d(i_scint - 1) / sum(d(i_scint - 1));
+                    d(i_other - 1) = total_size * d(i_other - 1);
                 end
                 
                 if (optimization_mode == "Efficiency")
@@ -232,10 +241,16 @@ function One_D_PhC_Optimization(                ...
     end
     
     % in known structure mode, the thicknesses are known
-    if ((optimize == 0) & ~(isempty(d0)))
+    if ((optimize == 0) & ~(isempty(d0)) & ~control.load_data_from_dir)
         optimized_d = d0;
     end
-    
+     
+    if save_fig
+        save(dir_name + "\optimized_d.mat", 'optimized_d');
+        save(dir_name + "\n.mat", 'n');
+        save(dir_name + "\i_scint.mat", 'i_scint');
+    end
+      
     % At the end of this section we calculated the thicknesses of the
     % structure. Now we will plot the efficienc and emission rate of the
     % structure.
@@ -341,12 +356,6 @@ end
     plot(1:length(optimized_d), optimized_d, 'DisplayName', 'All');  hold on;
     plot(i_scint-1, optimized_d(i_scint - 1), 'ro', 'DisplayName', 'Scint');  hold on;
     graphParams(['Optimal thicknesses - ', num2str(2*pairs + 2), ' layers'], '$Layer\ Number$', '$Y_{max}$[nm]', 'optimized_d', save_fig, dir_name);
-    y_max_nm = optimized_d;
-    if save_fig
-        save(dir_name + "\optimized_d.mat", 'y_max_nm');
-        save(dir_name + "\n.mat", 'n');
-        save(dir_name + "\i_scint.mat", 'i_scint');
-    end
 
     %% Plotting MTF and Test image
     
