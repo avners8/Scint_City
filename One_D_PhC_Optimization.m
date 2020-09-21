@@ -308,13 +308,13 @@ end
     % Plotting the emission rate as a function of the angle
     
     theta = linspace(-pi/2, pi/2, num_theta_plot);
-    lambda = mu_lambda;
-    F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control);
+    lambda = lambda_orig;
+    F_max  = Scint_City_fun(lambda,theta,optimized_d,n,i_scint,coupled,control) * Y';
     if ~((optimize == 0) | ~isempty(d0))
-        F_min  = Scint_City_fun(lambda,theta,y_min,n,i_scint,coupled,control);
+        F_min  = Scint_City_fun(lambda,theta,y_min,n,i_scint,coupled,control) * Y';
     end
 
-    F_bulk = Scint_City_fun(lambda,theta,total_size,n_bulk,2,coupled,control);
+    F_bulk = Scint_City_fun(lambda,theta,total_size,n_bulk,2,coupled,control) * Y';
     norm_F = F_bulk(ceil(end / 2)); % at theta = 0
 
     figure();
@@ -324,7 +324,7 @@ end
     end
     plot(theta, F_bulk ./ norm_F, 'Color', Gold	,  'DisplayName', '$bulk$'); hold on;
     
-    graphParams(['Optimal theoretical result - ', num2str(2*pairs + 2), ' layers, ', '$lambda=$', num2str(lambda), '[nm]'], '$\theta\ [rad]$', '$f$', 'theta', save_fig, dir_name);
+    graphParams(['Optimal theoretical result - ', num2str(length(n)), ' layers'], '$\theta\ [rad]$', '$f$', 'theta', save_fig, dir_name);
     
 if length(lambda_orig) > 1 & length(theta_orig) > 1
     theta = linspace(-pi/2, pi/2, num_theta_plot);
